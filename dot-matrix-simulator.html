@@ -89,7 +89,7 @@
     .btn-clear { background: #e94560; color: #fff; }
     .btn-fill { background: #00ff88; color: #1a1a2e; }
     .preview-area {
-      flex: 1; background: #0a0a14; border-radius: 12px;
+      flex: 1; background: #000; border-radius: 12px;
       display: flex; align-items: center; justify-content: center;
       overflow: hidden; position: relative; min-height: 400px;
     }
@@ -159,7 +159,7 @@
 
       <!-- 单元颜色 -->
       <div class="panel-section">
-        <h3>每个单元的背景色（LED灭时的颜色）</h3>
+        <h3>每个单元的颜色（文字经过时显示该颜色）</h3>
         <div class="color-presets" id="unitPresets"></div>
         <div class="unit-colors" id="unitColors"></div>
       </div>
@@ -194,7 +194,7 @@
     const LED_SIZE = 5;
     const LED_GAP = 1.5;
     const CELL = LED_SIZE + LED_GAP;
-    const SCALE = 2;  // 文字渲染分辨率倍数
+    const SCALE = 2;
 
     let config = {
       rows: 3,
@@ -205,10 +205,9 @@
       speed: 30,
       brightness: 1,
       textColor: '#ff0000',
-      unitColors: [],     // 每个单元的背景色
+      unitColors: [],
       scrollOffset: 0,
       animId: null,
-      // 缓存文字宽度，避免每帧重复测量
       textWidthCache: 0,
     };
 
@@ -220,10 +219,10 @@
     ];
 
     const UNIT_PRESETS = [
-      { hex: '#002200', name: '暗绿' }, { hex: '#110000', name: '暗红' },
-      { hex: '#001122', name: '暗蓝' }, { hex: '#111111', name: '黑色' },
-      { hex: '#001100', name: '深绿' }, { hex: '#220000', name: '深红' },
-      { hex: '#000011', name: '深蓝' }, { hex: '#000000', name: '纯黑' }
+      { hex: '#ff0000', name: '红' }, { hex: '#00ff00', name: '绿' },
+      { hex: '#0088ff', name: '蓝' }, { hex: '#ffff00', name: '黄' },
+      { hex: '#00ffff', name: '青' }, { hex: '#ff00ff', name: '粉' },
+      { hex: '#ff8800', name: '橙' }, { hex: '#ffffff', name: '白' }
     ];
 
     const canvas = document.getElementById('canvas');
@@ -241,14 +240,12 @@
 
     function initUnitColors() {
       config.unitColors = [];
-      const total = config.rows * config.cols;
-      for (let i = 0; i < total; i++) {
+      for (let i = 0; i < config.rows * config.cols; i++) {
         config.unitColors.push(UNIT_PRESETS[0].hex);
       }
     }
 
     function measureTextWidth(text, fontSize) {
-      // 测量文字宽度（像素）
       const tmpCanvas = document.createElement('canvas');
       const tmpCtx = tmpCanvas.getContext('2d');
       tmpCtx.font = `bold ${fontSize * SCALE * 1.4}px 'Roboto Mono', monospace`;
@@ -283,7 +280,6 @@
         d.onclick = () => {
           document.querySelectorAll('#unitPresets .preset-color').forEach(x => x.classList.remove('selected'));
           d.classList.add('selected');
-          // 应用到所有单元
           for (let j = 0; j < config.unitColors.length; j++) {
             config.unitColors[j] = p.hex;
           }
@@ -403,10 +399,11 @@
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.shadowBlur = 5 * config.brightness;
-      ctx.shadowColor = config.textColor;
-      ctx.fillStyle = config.textColor;
       for (let r = 0; r < config.rows; r++) {
         for (let c = 0; c < config.cols; c++) {
+          const i = r * config.cols + c;
+          ctx.shadowColor = config.unitColors[i];
+          ctx.fillStyle = config.unitColors[i];
           for (let ly = 0; ly < UNIT; ly++) {
             for (let lx = 0; lx < UNIT; lx++) {
               const px = c * UNIT * CELL + lx * CELL;
@@ -426,25 +423,19 @@
       const ocW = totalW * SCALE;
       const ocH = totalH * SCALE;
 
-      // 离屏canvas渲染文字
+      // 清屏 - 黑色背景（LED全灭）
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // 离屏canvas渲染文字（白字黑底）
       const oc = document.createElement('canvas');
       oc.width = ocW;
       oc.height = ocH;
       const octx = oc.getContext('2d');
 
-      // 背景填充（每个单元用自己的背景色）
-      for (let r = 0; r < config.rows; r++) {
-        for (let c = 0; c < config.cols; c++) {
-          const i = r * config.cols + c;
-          const ox = c * UNIT * SCALE;
-          const oy = r * UNIT * SCALE;
-          octx.fillStyle = config.unitColors[i];
-          octx.fillRect(ox, oy, UNIT * SCALE, UNIT * SCALE);
-        }
-      }
-
-      // 白色文字
-      octx.fillStyle = '#ffffff';
+      octx.fillStyle = '#000';
+      octx.fillRect(0, 0, ocW, ocH);
+      octx.fillStyle = '#fff';
       octx.font = `bold ${config.fontSize * SCALE * 1.4}px 'Roboto Mono', monospace`;
       octx.textAlign = 'center';
       octx.textBaseline = 'middle';
@@ -456,23 +447,23 @@
         if (config.scrollOffset > maxOffset) {
           config.scrollOffset = 0;
         }
-        // 文字从右边进来
-        // scrollOffset=0: 文字最右边在屏幕最右边
-        // scrollOffset=maxOffset: 文字最左边在屏幕最左边
         textX = ocW - config.scrollOffset * SCALE;
       } else {
         textX = ocW / 2;
       }
 
       octx.fillText(config.text, textX, ocH / 2);
-
-      // 获取像素数据
       const imgData = octx.getImageData(0, 0, ocW, ocH).data;
 
-      // 绘制到主canvas
+      // 绘制每个单元
       for (let r = 0; r < config.rows; r++) {
         for (let c = 0; c < config.cols; c++) {
           const i = r * config.cols + c;
+          const color = config.unitColors[i];
+
+          ctx.shadowBlur = 8 * config.brightness;
+          ctx.shadowColor = color;
+          ctx.fillStyle = color;
 
           for (let ly = 0; ly < UNIT; ly++) {
             for (let lx = 0; lx < UNIT; lx++) {
@@ -482,13 +473,10 @@
               const sy = Math.floor(gy * SCALE + SCALE / 2);
               if (sx < 0 || sx >= ocW || sy < 0 || sy >= ocH) continue;
               const idx = (sy * ocW + sx) * 4;
-              if (imgData[idx + 3] > 80) {
-                // 文字像素，用单元颜色绘制LED
+              // 只有白色像素位置才点亮LED
+              if (imgData[idx] > 128) {
                 const px = c * UNIT * CELL + lx * CELL;
                 const py = r * UNIT * CELL + ly * CELL;
-                ctx.shadowBlur = 8 * config.brightness;
-                ctx.shadowColor = config.textColor;
-                ctx.fillStyle = config.textColor;
                 ctx.beginPath();
                 ctx.arc(px + LED_SIZE/2, py + LED_SIZE/2, LED_SIZE/2, 0, Math.PI * 2);
                 ctx.fill();
