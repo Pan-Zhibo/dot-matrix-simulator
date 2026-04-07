@@ -9,7 +9,7 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: 'Roboto Mono', monospace;
+      font-family: 'Roboto Mono', 'Consolas', 'Monaco', monospace;
       background: #1a1a2e;
       color: #eee;
       min-height: 100vh;
@@ -110,7 +110,6 @@
 
   <div class="container">
     <div class="panel">
-      <!-- 布局配置 -->
       <div class="panel-section">
         <h3>布局配置</h3>
         <div class="row">
@@ -122,18 +121,16 @@
         </div>
       </div>
 
-      <!-- 文字输入 -->
       <div class="panel-section">
         <h3>文字显示</h3>
-        <input type="text" id="textInput" placeholder="输入文字..." value="Hello World">
+        <input type="text" id="textInput" placeholder="输入文字..." value="Hello">
         <div class="row">
           <label>字体大小</label>
-          <input type="range" id="fontSize" min="8" max="24" value="12">
-          <span class="value-display" id="fontSizeVal">12px</span>
+          <input type="range" id="fontSize" min="8" max="20" value="10">
+          <span class="value-display" id="fontSizeVal">10px</span>
         </div>
       </div>
 
-      <!-- 显示模式 -->
       <div class="panel-section">
         <h3>显示模式</h3>
         <div class="mode-toggle">
@@ -142,14 +139,13 @@
         </div>
         <div class="row">
           <label>滚动速度</label>
-          <input type="number" id="speed" min="1" max="200" value="30" style="width:60px;">
+          <input type="number" id="speed" min="1" max="200" value="20" style="width:60px;">
           <span class="value-display">ms/步</span>
         </div>
       </div>
 
-      <!-- 文字颜色 -->
       <div class="panel-section">
-        <h3>文字颜色（统一颜色）</h3>
+        <h3>文字颜色</h3>
         <div class="color-presets" id="textPresets"></div>
         <div class="row" style="margin-top:4px;">
           <label>自选颜色</label>
@@ -157,14 +153,12 @@
         </div>
       </div>
 
-      <!-- 单元颜色 -->
       <div class="panel-section">
-        <h3>每个单元的颜色（文字经过时显示该颜色）</h3>
+        <h3>每个单元的颜色</h3>
         <div class="color-presets" id="unitPresets"></div>
         <div class="unit-colors" id="unitColors"></div>
       </div>
 
-      <!-- 亮度 -->
       <div class="panel-section">
         <h3>亮度调节</h3>
         <div class="row">
@@ -174,7 +168,6 @@
         </div>
       </div>
 
-      <!-- 功能按钮 -->
       <div class="panel-section">
         <div class="btn-row">
           <button class="btn-clear" onclick="clearAll()">清屏</button>
@@ -195,34 +188,34 @@
     const LED_GAP = 1.5;
     const CELL = LED_SIZE + LED_GAP;
     const SCALE = 2;
+    const FONT_SCALE = 1.2;
 
     let config = {
       rows: 3,
       cols: 4,
-      text: 'Hello World',
-      fontSize: 12,
+      text: 'Hello',
+      fontSize: 10,
       mode: 'scroll',
-      speed: 30,
+      speed: 20,
       brightness: 1,
       textColor: '#ff0000',
       unitColors: [],
       scrollOffset: 0,
       animId: null,
       textWidthCache: 0,
+      fontLoaded: false,
     };
 
     const TEXT_PRESETS = [
-      { hex: '#ff0000', name: '红' }, { hex: '#00ff00', name: '绿' },
-      { hex: '#0088ff', name: '蓝' }, { hex: '#ffff00', name: '黄' },
-      { hex: '#00ffff', name: '青' }, { hex: '#ff00ff', name: '粉' },
-      { hex: '#ff8800', name: '橙' }, { hex: '#ffffff', name: '白' }
+      { hex: '#ff0000' }, { hex: '#00ff00' }, { hex: '#0088ff' },
+      { hex: '#ffff00' }, { hex: '#00ffff' }, { hex: '#ff00ff' },
+      { hex: '#ff8800' }, { hex: '#ffffff' }
     ];
 
     const UNIT_PRESETS = [
-      { hex: '#ff0000', name: '红' }, { hex: '#00ff00', name: '绿' },
-      { hex: '#0088ff', name: '蓝' }, { hex: '#ffff00', name: '黄' },
-      { hex: '#00ffff', name: '青' }, { hex: '#ff00ff', name: '粉' },
-      { hex: '#ff8800', name: '橙' }, { hex: '#ffffff', name: '白' }
+      { hex: '#ff0000' }, { hex: '#00ff00' }, { hex: '#0088ff' },
+      { hex: '#ffff00' }, { hex: '#00ffff' }, { hex: '#ff00ff' },
+      { hex: '#ff8800' }, { hex: '#ffffff' }
     ];
 
     const canvas = document.getElementById('canvas');
@@ -235,7 +228,13 @@
       renderUnitColors();
       applyLayout();
       bindEvents();
-      startAnim();
+      // 等待字体加载后再开始动画
+      document.fonts.ready.then(() => {
+        config.fontLoaded = true;
+        config.textWidthCache = measureTextWidth(config.text, config.fontSize);
+        draw();
+        startAnim();
+      });
     }
 
     function initUnitColors() {
@@ -248,45 +247,35 @@
     function measureTextWidth(text, fontSize) {
       const tmpCanvas = document.createElement('canvas');
       const tmpCtx = tmpCanvas.getContext('2d');
-      tmpCtx.font = `bold ${fontSize * SCALE * 1.4}px 'Roboto Mono', monospace`;
-      return tmpCtx.measureText(text).width * SCALE;
+      tmpCtx.font = `${fontSize * SCALE * FONT_SCALE}px 'Roboto Mono', monospace`;
+      return tmpCtx.measureText(text).width;
     }
 
-    function renderTextPresets() {
-      const c = document.getElementById('textPresets');
+    function renderPresets(containerId, presets, selectedIdx, onclick) {
+      const c = document.getElementById(containerId);
       c.innerHTML = '';
-      TEXT_PRESETS.forEach((p, i) => {
+      presets.forEach((p, i) => {
         const d = document.createElement('div');
-        d.className = 'preset-color' + (i === 0 ? ' selected' : '');
+        d.className = 'preset-color' + (i === selectedIdx ? ' selected' : '');
         d.style.background = p.hex;
-        d.title = p.name;
         d.onclick = () => {
-          document.querySelectorAll('#textPresets .preset-color').forEach(x => x.classList.remove('selected'));
+          document.querySelectorAll('#' + containerId + ' .preset-color').forEach(x => x.classList.remove('selected'));
           d.classList.add('selected');
-          setTextColor(p.hex);
+          onclick(p.hex);
         };
         c.appendChild(d);
       });
     }
 
+    function renderTextPresets() {
+      renderPresets('textPresets', TEXT_PRESETS, 0, hex => setTextColor(hex));
+    }
+
     function renderUnitPresets() {
-      const c = document.getElementById('unitPresets');
-      c.innerHTML = '';
-      UNIT_PRESETS.forEach((p, i) => {
-        const d = document.createElement('div');
-        d.className = 'preset-color' + (i === 0 ? ' selected' : '');
-        d.style.background = p.hex;
-        d.title = p.name;
-        d.onclick = () => {
-          document.querySelectorAll('#unitPresets .preset-color').forEach(x => x.classList.remove('selected'));
-          d.classList.add('selected');
-          for (let j = 0; j < config.unitColors.length; j++) {
-            config.unitColors[j] = p.hex;
-          }
-          renderUnitColors();
-          draw();
-        };
-        c.appendChild(d);
+      renderPresets('unitPresets', UNIT_PRESETS, 0, hex => {
+        for (let j = 0; j < config.unitColors.length; j++) config.unitColors[j] = hex;
+        renderUnitColors();
+        draw();
       });
     }
 
@@ -323,7 +312,7 @@
         draw();
       });
       document.getElementById('speed').addEventListener('change', e => {
-        config.speed = parseInt(e.target.value) || 30;
+        config.speed = parseInt(e.target.value) || 20;
       });
       document.getElementById('textInput').addEventListener('input', e => {
         config.text = e.target.value || ' ';
@@ -423,11 +412,9 @@
       const ocW = totalW * SCALE;
       const ocH = totalH * SCALE;
 
-      // 清屏 - 黑色背景（LED全灭）
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // 离屏canvas渲染文字（白字黑底）
       const oc = document.createElement('canvas');
       oc.width = ocW;
       oc.height = ocH;
@@ -436,31 +423,30 @@
       octx.fillStyle = '#000';
       octx.fillRect(0, 0, ocW, ocH);
       octx.fillStyle = '#fff';
-      octx.font = `bold ${config.fontSize * SCALE * 1.4}px 'Roboto Mono', monospace`;
+      octx.font = `${config.fontSize * SCALE * FONT_SCALE}px 'Roboto Mono', monospace`;
       octx.textAlign = 'center';
       octx.textBaseline = 'middle';
 
       let textX;
       if (config.mode === 'scroll') {
-        const textW = config.textWidthCache;
-        const maxOffset = Math.ceil((ocW + textW) / SCALE);
-        if (config.scrollOffset > maxOffset) {
-          config.scrollOffset = 0;
-        }
-        textX = ocW - config.scrollOffset * SCALE;
+        // 滚动：文字从右边进来
+        // scrollOffset=0: 文字最右边刚好在屏幕最右边 (ocW + textWidth/2)
+        // 每次减少scrollOffset，直到文字完全滚出左边
+        const maxOffset = Math.ceil((ocW + config.textWidthCache) / SCALE);
+        if (config.scrollOffset > maxOffset) config.scrollOffset = 0;
+        textX = ocW + config.textWidthCache / 2 - config.scrollOffset * SCALE;
       } else {
         textX = ocW / 2;
       }
 
       octx.fillText(config.text, textX, ocH / 2);
+
       const imgData = octx.getImageData(0, 0, ocW, ocH).data;
 
-      // 绘制每个单元
       for (let r = 0; r < config.rows; r++) {
         for (let c = 0; c < config.cols; c++) {
           const i = r * config.cols + c;
           const color = config.unitColors[i];
-
           ctx.shadowBlur = 8 * config.brightness;
           ctx.shadowColor = color;
           ctx.fillStyle = color;
@@ -469,16 +455,26 @@
             for (let lx = 0; lx < UNIT; lx++) {
               const gx = c * UNIT + lx;
               const gy = r * UNIT + ly;
-              const sx = Math.floor(gx * SCALE + SCALE / 2);
-              const sy = Math.floor(gy * SCALE + SCALE / 2);
-              if (sx < 0 || sx >= ocW || sy < 0 || sy >= ocH) continue;
-              const idx = (sy * ocW + sx) * 4;
-              // 只有白色像素位置才点亮LED
-              if (imgData[idx] > 128) {
-                const px = c * UNIT * CELL + lx * CELL;
-                const py = r * UNIT * CELL + ly * CELL;
+              const sx = gx * SCALE;
+              const sy = gy * SCALE;
+
+              // 检查像素是否在文字范围内（使用多个采样点）
+              let lit = false;
+              for (let dy = 0; dy < SCALE && !lit; dy++) {
+                for (let dx = 0; dx < SCALE && !lit; dx++) {
+                  const px = sx + dx;
+                  const py = sy + dy;
+                  if (px >= ocW || py >= ocH) continue;
+                  const idx = (py * ocW + px) * 4;
+                  if (imgData[idx] > 50) lit = true;
+                }
+              }
+
+              if (lit) {
+                const canvasX = c * UNIT * CELL + lx * CELL;
+                const canvasY = r * UNIT * CELL + ly * CELL;
                 ctx.beginPath();
-                ctx.arc(px + LED_SIZE/2, py + LED_SIZE/2, LED_SIZE/2, 0, Math.PI * 2);
+                ctx.arc(canvasX + LED_SIZE/2, canvasY + LED_SIZE/2, LED_SIZE/2, 0, Math.PI * 2);
                 ctx.fill();
               }
             }
