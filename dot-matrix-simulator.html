@@ -41,38 +41,34 @@
     }
     .panel-section { display: flex; flex-direction: column; gap: 8px; }
     .panel-section h3 {
-      font-size: 0.8rem;
-      color: #00ff88;
-      border-bottom: 1px solid #00ff8844;
-      padding-bottom: 4px;
+      font-size: 0.8rem; color: #00ff88;
+      border-bottom: 1px solid #00ff8844; padding-bottom: 4px;
     }
     .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     label { font-size: 0.78rem; color: #aaa; min-width: 52px; }
     input[type="number"], input[type="text"] {
-      background: #0f3460;
-      border: 1px solid #00ff8844;
-      border-radius: 6px;
-      color: #fff;
-      padding: 6px 10px;
-      font-family: inherit;
-      font-size: 0.85rem;
+      background: #0f3460; border: 1px solid #00ff8844;
+      border-radius: 6px; color: #fff; padding: 6px 10px;
+      font-family: inherit; font-size: 0.85rem;
     }
     input[type="number"] { width: 65px; }
     input[type="text"] { width: 100%; }
     input[type="range"] { flex: 1; min-width: 80px; accent-color: #00ff88; }
     input[type="color"] {
-      width: 32px; height: 32px;
-      border: none; border-radius: 6px;
+      width: 32px; height: 32px; border: none; border-radius: 6px;
       cursor: pointer; background: none; padding: 0;
     }
     .value-display { font-size: 0.75rem; color: #888; min-width: 40px; text-align: right; }
+    .color-dot {
+      width: 24px; height: 24px; border-radius: 50%; border: 2px solid #333;
+      cursor: pointer; transition: transform 0.15s; display: inline-block;
+    }
+    .color-dot:hover { transform: scale(1.2); }
     .mode-toggle { display: flex; gap: 6px; }
     .mode-btn {
-      flex: 1; padding: 8px;
-      border: 1px solid #00ff8844; border-radius: 6px;
-      background: #0f3460; color: #aaa;
-      cursor: pointer; font-family: inherit; font-size: 0.78rem;
-      transition: all 0.2s;
+      flex: 1; padding: 8px; border: 1px solid #00ff8844; border-radius: 6px;
+      background: #0f3460; color: #aaa; cursor: pointer;
+      font-family: inherit; font-size: 0.78rem; transition: all 0.2s;
     }
     .mode-btn.active { background: #00ff88; color: #1a1a2e; border-color: #00ff88; }
     .color-presets { display: flex; gap: 5px; flex-wrap: wrap; }
@@ -98,13 +94,9 @@
     .btn-clear { background: #e94560; color: #fff; }
     .btn-fill { background: #00ff88; color: #1a1a2e; }
     .preview-area {
-      flex: 1;
-      background: #0a0a14;
-      border-radius: 12px;
+      flex: 1; background: #0a0a14; border-radius: 12px;
       display: flex; align-items: center; justify-content: center;
-      overflow: hidden;
-      position: relative;
-      min-height: 400px;
+      overflow: hidden; position: relative; min-height: 400px;
     }
     #canvas { image-rendering: pixelated; }
     .preview-label {
@@ -155,16 +147,26 @@
         </div>
         <div class="row">
           <label>滚动速度</label>
-          <input type="number" id="speed" min="10" max="500" value="50" style="width:60px;">
+          <input type="number" id="speed" min="1" max="200" value="30" style="width:60px;">
           <span class="value-display">ms/步</span>
         </div>
       </div>
 
-      <!-- 颜色配置 -->
+      <!-- 文字颜色 -->
       <div class="panel-section">
-        <h3>颜色配置</h3>
-        <div class="color-presets" id="presets"></div>
-        <div style="font-size:0.7rem;color:#666;margin-top:4px;">点下方颜色可单独修改每个单元</div>
+        <h3>文字颜色</h3>
+        <div class="color-presets" id="textPresets"></div>
+        <div class="row" style="margin-top:4px;">
+          <label>当前颜色</label>
+          <div id="textColorPreview" class="color-dot" style="background:#ff0000;"></div>
+          <input type="color" id="textColorPicker" value="#ff0000" onchange="setTextColor(this.value)">
+        </div>
+      </div>
+
+      <!-- 单元背景色 -->
+      <div class="panel-section">
+        <h3>单元背景色（LED暗时的颜色）</h3>
+        <div class="color-presets" id="unitPresets"></div>
         <div class="unit-colors" id="unitColors"></div>
       </div>
 
@@ -205,54 +207,69 @@
       text: 'Hello World',
       fontSize: 12,
       mode: 'scroll',
-      speed: 50,
+      speed: 30,
       brightness: 1,
-      colors: [],
+      textColor: '#ff0000',
+      unitColor: '#003300',   // LED灭时的背景色
       scrollOffset: 0,
       animId: null,
-      presetColor: '#ff0000'
     };
 
-    const PRESETS = [
+    const TEXT_PRESETS = [
       { hex: '#ff0000', name: '红' }, { hex: '#00ff00', name: '绿' },
       { hex: '#0088ff', name: '蓝' }, { hex: '#ffff00', name: '黄' },
       { hex: '#00ffff', name: '青' }, { hex: '#ff00ff', name: '粉' },
       { hex: '#ff8800', name: '橙' }, { hex: '#ffffff', name: '白' }
     ];
 
+    const UNIT_PRESETS = [
+      { hex: '#002200', name: '暗绿' }, { hex: '#110000', name: '暗红' },
+      { hex: '#001122', name: '暗蓝' }, { hex: '#111111', name: '黑色' },
+      { hex: '#001100', name: '深绿' }, { hex: '#220000', name: '深红' },
+      { hex: '#000011', name: '深蓝' }, { hex: '#000000', name: '纯黑' }
+    ];
+
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
 
     function init() {
-      initColors();
-      renderPresets();
+      renderTextPresets();
+      renderUnitPresets();
       renderUnitColors();
       applyLayout();
       bindEvents();
       startAnim();
     }
 
-    function initColors() {
-      config.colors = [];
-      for (let i = 0; i < config.rows * config.cols; i++) {
-        config.colors.push(PRESETS[0].hex);
-      }
-    }
-
-    function renderPresets() {
-      const c = document.getElementById('presets');
+    function renderTextPresets() {
+      const c = document.getElementById('textPresets');
       c.innerHTML = '';
-      PRESETS.forEach((p, i) => {
+      TEXT_PRESETS.forEach((p, i) => {
         const d = document.createElement('div');
         d.className = 'preset-color' + (i === 0 ? ' selected' : '');
         d.style.background = p.hex;
         d.title = p.name;
         d.onclick = () => {
-          document.querySelectorAll('.preset-color').forEach(x => x.classList.remove('selected'));
+          document.querySelectorAll('#textPresets .preset-color').forEach(x => x.classList.remove('selected'));
           d.classList.add('selected');
-          config.presetColor = p.hex;
-          // apply to all units
-          config.colors = config.colors.map(() => p.hex);
+          setTextColor(p.hex);
+        };
+        c.appendChild(d);
+      });
+    }
+
+    function renderUnitPresets() {
+      const c = document.getElementById('unitPresets');
+      c.innerHTML = '';
+      UNIT_PRESETS.forEach((p, i) => {
+        const d = document.createElement('div');
+        d.className = 'preset-color' + (i === 0 ? ' selected' : '');
+        d.style.background = p.hex;
+        d.title = p.name;
+        d.onclick = () => {
+          document.querySelectorAll('#unitPresets .preset-color').forEach(x => x.classList.remove('selected'));
+          d.classList.add('selected');
+          config.unitColor = p.hex;
           renderUnitColors();
           draw();
         };
@@ -268,14 +285,24 @@
         d.className = 'unit-color-item';
         d.innerHTML = `
           <span>${Math.floor(i / config.cols) + 1}-${(i % config.cols) + 1}</span>
-          <input type="color" value="${config.colors[i]}" onchange="setColor(${i}, this.value)">
+          <input type="color" value="${config.unitColor}" onchange="setUnitColor(${i}, this.value)">
         `;
         c.appendChild(d);
       }
     }
 
-    function setColor(idx, color) {
-      config.colors[idx] = color;
+    function setUnitColor(idx, color) {
+      config.unitColor = color;
+      draw();
+    }
+
+    function setTextColor(color) {
+      config.textColor = color;
+      document.getElementById('textColorPicker').value = color;
+      document.getElementById('textColorPreview').style.background = color;
+      document.querySelectorAll('#textPresets .preset-color').forEach(p => {
+        p.classList.toggle('selected', p.style.background === color);
+      });
       draw();
     }
 
@@ -286,7 +313,7 @@
         draw();
       });
       document.getElementById('speed').addEventListener('change', e => {
-        config.speed = parseInt(e.target.value) || 50;
+        config.speed = parseInt(e.target.value) || 30;
       });
       document.getElementById('textInput').addEventListener('input', e => {
         config.text = e.target.value || ' ';
@@ -302,7 +329,7 @@
     function applyLayout() {
       config.rows = parseInt(document.getElementById('rows').value) || 3;
       config.cols = parseInt(document.getElementById('cols').value) || 4;
-      initColors();
+      config.scrollOffset = 0;
       renderUnitColors();
       resizeCanvas();
       draw();
@@ -326,7 +353,7 @@
       document.getElementById('modeScroll').classList.toggle('active', m === 'scroll');
       document.getElementById('modeStatic').classList.toggle('active', m === 'static');
       if (m === 'static') stopAnim();
-      else startAnim();
+      else { config.scrollOffset = 0; startAnim(); }
     }
 
     function startAnim() {
@@ -349,7 +376,7 @@
 
     function clearAll() {
       stopAnim();
-      ctx.fillStyle = '#000';
+      ctx.fillStyle = config.unitColor;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
@@ -357,16 +384,15 @@
       stopAnim();
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.shadowBlur = 5 * config.brightness;
+      ctx.shadowColor = config.textColor;
+      ctx.fillStyle = config.textColor;
       for (let r = 0; r < config.rows; r++) {
         for (let c = 0; c < config.cols; c++) {
-          const i = r * config.cols + c;
-          ctx.shadowBlur = 5 * config.brightness;
-          ctx.shadowColor = config.colors[i];
-          ctx.fillStyle = config.colors[i];
-          for (let y = 0; y < UNIT; y++) {
-            for (let x = 0; x < UNIT; x++) {
-              const px = c * UNIT * CELL + x * CELL;
-              const py = r * UNIT * CELL + y * CELL;
+          for (let ly = 0; ly < UNIT; ly++) {
+            for (let lx = 0; lx < UNIT; lx++) {
+              const px = c * UNIT * CELL + lx * CELL;
+              const py = r * UNIT * CELL + ly * CELL;
               ctx.beginPath();
               ctx.arc(px + LED_SIZE/2, py + LED_SIZE/2, LED_SIZE/2, 0, Math.PI * 2);
               ctx.fill();
@@ -377,25 +403,70 @@
     }
 
     function draw() {
-      ctx.fillStyle = '#000';
+      // 背景
+      ctx.fillStyle = config.unitColor;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      const off = renderTextToBitmap();
       const totalW = config.cols * UNIT;
       const totalH = config.rows * UNIT;
+      const scale = 2;
+      const ocW = totalW * scale;
+      const ocH = totalH * scale;
+
+      // 离屏canvas渲染文字
+      const oc = document.createElement('canvas');
+      oc.width = ocW;
+      oc.height = ocH;
+      const octx = oc.getContext('2d');
+
+      octx.fillStyle = '#000';
+      octx.fillRect(0, 0, ocW, ocH);
+      octx.fillStyle = '#fff';
+      octx.font = `bold ${config.fontSize * scale * 1.4}px 'Roboto Mono', monospace`;
+      octx.textAlign = 'center';
+      octx.textBaseline = 'middle';
+
+      // 滚动模式下，文字从右边进来，逐渐左移
+      // textX = 文字中心x坐标
+      // 初始：文字最右边在屏幕最右边 → textX = ocW + textWidth/2
+      // 然后逐渐减小，直到文字最左边到达屏幕最左边 → textX = -textWidth/2
+      // 到达后重置scrollOffset
+      let textX;
+      if (config.mode === 'scroll') {
+        const metrics = octx.measureText(config.text);
+        const textWidth = metrics.width * scale;
+        const totalScrollRange = ocW + textWidth;  // 总共要滚过的距离
+        const maxOffset = Math.ceil(totalScrollRange / scale);
+        if (config.scrollOffset > maxOffset) {
+          config.scrollOffset = 0;
+        }
+        // 文字从右边开始（ocW），向左移动（减去offset）
+        textX = ocW - config.scrollOffset * scale;
+      } else {
+        textX = ocW / 2;
+      }
+
+      octx.fillText(config.text, textX, ocH / 2);
+
+      const imgData = octx.getImageData(0, 0, ocW, ocH).data;
+
+      // 绘制每个LED
+      ctx.shadowBlur = 8 * config.brightness;
+      ctx.shadowColor = config.textColor;
+      ctx.fillStyle = config.textColor;
 
       for (let r = 0; r < config.rows; r++) {
         for (let c = 0; c < config.cols; c++) {
-          const i = r * config.cols + c;
-          ctx.shadowBlur = 8 * config.brightness;
-          ctx.shadowColor = config.colors[i];
-          ctx.fillStyle = config.colors[i];
           for (let ly = 0; ly < UNIT; ly++) {
             for (let lx = 0; lx < UNIT; lx++) {
               const gx = c * UNIT + lx;
               const gy = r * UNIT + ly;
-              const bit = getBit(off, gx, gy, totalW, totalH);
-              if (bit) {
+              // 检查对应位置像素是否亮
+              const sx = Math.floor(gx * scale + scale / 2);
+              const sy = Math.floor(gy * scale + scale / 2);
+              if (sx < 0 || sx >= ocW || sy < 0 || sy >= ocH) continue;
+              const idx = (sy * ocW + sx) * 4;
+              if (imgData[idx + 3] > 80) {
                 const px = c * UNIT * CELL + lx * CELL;
                 const py = r * UNIT * CELL + ly * CELL;
                 ctx.beginPath();
@@ -406,61 +477,6 @@
           }
         }
       }
-    }
-
-    // 渲染文字到位图（每bit代表一个像素点）
-    function renderTextToBitmap() {
-      const totalW = config.cols * UNIT;
-      const totalH = config.rows * UNIT;
-      const scale = 2;
-      const oc = document.createElement('canvas');
-      oc.width = totalW * scale;
-      oc.height = totalH * scale;
-      const octx = oc.getContext('2d');
-
-      octx.fillStyle = '#000';
-      octx.fillRect(0, 0, oc.width, oc.height);
-
-      octx.fillStyle = '#fff';
-      octx.font = `bold ${config.fontSize * scale * 1.5}px 'Roboto Mono', monospace`;
-      octx.textAlign = 'center';
-      octx.textBaseline = 'middle';
-
-      let textX = oc.width / 2;
-      if (config.mode === 'scroll') {
-        textX = oc.width + config.scrollOffset * scale;
-      }
-
-      octx.fillText(config.text, textX, oc.height / 2);
-
-      const imgData = octx.getImageData(0, 0, oc.width, oc.height).data;
-      const bits = [];
-
-      for (let y = 0; y < totalH; y++) {
-        for (let x = 0; x < totalW; x++) {
-          let on = false;
-          const sx = Math.floor(x * scale + scale / 2);
-          const sy = Math.floor(y * scale + scale / 2);
-          const idx = (sy * oc.width + sx) * 4;
-          if (imgData[idx + 3] > 80) on = true;
-          bits.push(on ? 1 : 0);
-        }
-      }
-
-      // 滚动重置
-      if (config.mode === 'scroll') {
-        const textW = octx.measureText(config.text).width * scale;
-        if (textX + textW / 2 < 0) {
-          config.scrollOffset = -Math.ceil(oc.width / scale);
-        }
-      }
-
-      return bits;
-    }
-
-    function getBit(bits, x, y, w, h) {
-      if (x < 0 || x >= w || y < 0 || y >= h) return 0;
-      return bits[y * w + x];
     }
 
     window.addEventListener('resize', () => { resizeCanvas(); draw(); });
